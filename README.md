@@ -18,6 +18,8 @@ OpenWrt firmware patching and repackaging tools
 ### Usage
 
      openwrt-repack.sh <ROM_file> [options] ...    patch firmware <ROM_file> and repackage
+     openwrt-repack.sh <ROM_file> -U               only unpack firmware <ROM_file>
+     openwrt-repack.sh -R <output_file>            filename of newly built firmware with the unpack files before
      openwrt-repack.sh -c                          clean temporary and target files
      
     Options:
