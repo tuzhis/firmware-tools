@@ -231,7 +231,6 @@ do_firmware_repack()
 	fi
 
 	print_green ">>> Extracting kernel, rootfs partitions ..."
-	echo "squashfs offset: $squashfs_offset."
 
 	# Partition: kernel
 	# dd if="$old_romfile" bs=1 count=$squashfs_offset > uImage.bin
