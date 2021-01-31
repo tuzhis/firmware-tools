@@ -8,6 +8,7 @@ IGNORE_MODIFY_ERRORS=N
 OPKG_REMOVE_LIST=
 OPKG_INSTALL_LIST=
 ROOTFS_CMDS=
+REPACK_FLAG=
 
 print_green()
 {
@@ -48,8 +49,9 @@ print_help()
 	cat <<EOF
 Usage:
  $arg0 <ROM_file> [options] ...    patch firmware <ROM_file> and repackage
+ $arg0 <ROM_file> -U               only unpack firmware <ROM_file> 
  $arg0 -c                          clean temporary and target files
-
+ $arg0 -R <output_file>            filename of newly built firmware with the unpack files before
 Options:
  -o <output_file>          filename of newly built firmware
  -r <package>              remove opkg package (can be multiple)
@@ -136,6 +138,7 @@ do_firmware_repack()
 {
 	local old_romfile=
 	local new_romfile=
+	local UNPACK_FLAG=
 	local __rc=0
 
 	# Parse options and parameters
@@ -163,6 +166,10 @@ do_firmware_repack()
 			-F)
 				IGNORE_MODIFY_ERRORS=Y
 				;;
+			
+			-U)
+				UNPACK_FLAG=Y
+				;;
 			-x)
 				shift 1
 				ROOTFS_CMDS="$ROOTFS_CMDS$1
@@ -183,8 +190,7 @@ do_firmware_repack()
 		esac
 		shift 1
 	done
-
-
+		
 	# Download file if the filename starts with "http*://"
 	case "$old_romfile" in
 		http*://*)
@@ -239,6 +245,9 @@ do_firmware_repack()
 	unsquashfs root.squashfs.orig
 	local rootfs_root=squashfs-root
 	#mv squashfs-root $rootfs_root
+	if [ "$UNPACK_FLAG" = Y ]; then
+		exit $__rc
+	fi
 
 	#######################################################
 	print_green ">>> Patching the firmware ..."
@@ -273,6 +282,38 @@ do_firmware_repack()
 	exit $__rc
 }
 
+repack_ext()
+{
+	local new_romfile=
+	if [ -z "$new_romfile" ]; then
+		new_romfile="$2"
+	else
+		echo "*** Useless parameter: $2".
+		exit 1
+	fi
+	local rootfs_root=squashfs-root
+	#######################################################
+	print_green ">>> You can patching the firmware before..."
+	
+	#######################################################
+
+	# Rebuild SquashFS image
+	print_green ">>> Repackaging the modified firmware ..."
+	mksquashfs $rootfs_root root.squashfs -nopad -noappend -root-owned -comp xz -Xpreset 9 -Xe -Xlc 0 -Xlp 2 -Xpb 2 -b 256k -p '/dev d 755 0 0' -p '/dev/console c 600 0 0 5 1' -processors 1
+	cat uImage.bin root.squashfs > "$new_romfile"
+	padjffs2 "$new_romfile" 4 8 16 64 128 256
+
+	print_green ">>> Done. New firmware: $new_romfile"
+
+	# Copy files for rapid debugging
+	[ -d /tftpboot ] && cp -vf "$new_romfile" /tftpboot/recovery.bin
+	[ -L recovery.bin ] && ln -sf "$new_romfile" recovery.bin
+
+	#rm -f root.squashfs* uImage.bin
+	#rm -rf $rootfs_root /tmp/opkg-lists
+
+	exit $__rc
+}
 clean_env()
 {
 	rm -f recovery.bin *.out
@@ -283,6 +324,7 @@ clean_env()
 
 case "$1" in
 	-c) clean_env;;
+	-R) repack_ext "$@";;
 	-h|--help) print_help;;
 	*) do_firmware_repack "$@";;
 esac
